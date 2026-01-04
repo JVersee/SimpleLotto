@@ -151,7 +151,7 @@ frame:SetScript("OnEvent", function(_, event, msg, sender)
             local winner = Lotto.tickets[winN]
             if winner then
                 local pot = Lotto.total * 5
-                local resultStr = string.format("Winner: %s (Ticket %d)! Payout: %dg (G-Bank: %dg)", winner, winN, pot*0.7, pot*0.3)
+                local resultStr = string.format("Winner: %s (Ticket %d)! Payout: %dg (Gbank: %dg)", winner, winN, pot*0.7, pot*0.3)
                 local dateStr = date("%d-%m-%Y")
                 table.insert(SimpleLottoHistory, "|cFF00FF00" .. dateStr .. ":|r " .. resultStr)
                 SendChatMessage(resultStr, "RAID")
@@ -170,3 +170,4 @@ end)
 
 SLASH_SIMPLELOTTO1 = "/sl"
 SlashCmdList["SIMPLELOTTO"] = HandleSlash
+
