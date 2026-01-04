@@ -11,6 +11,7 @@ A simple lottery addon for WoW Classic
 
 - /sl reset # close the current session
 
+- /sl  # this will open the UI window to manage the lottery
 
 # Recall
 
