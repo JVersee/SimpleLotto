@@ -2,7 +2,7 @@ local Lotto = { players = {}, tickets = {}, total = 0, active = false }
 
 -- 1. THE MAIN WINDOW
 local MainFrame = CreateFrame("Frame", "SimpleLottoFrame", UIParent, "BasicFrameTemplateWithInset")
-MainFrame:SetSize(300, 420)
+MainFrame:SetSize(300, 450) -- Increased height for the new button
 MainFrame:SetPoint("CENTER")
 MainFrame:SetMovable(true)
 MainFrame:EnableMouse(true)
@@ -18,7 +18,7 @@ MainFrame.title:SetText("Simple Lotto Master")
 
 -- 2. SCROLLABLE PLAYER LIST
 local ScrollFrame = CreateFrame("ScrollFrame", nil, MainFrame, "UIPanelScrollFrameTemplate")
-ScrollFrame:SetPoint("TOPLEFT", 10, -30)
+ScrollFrame:SetPoint("TOPLEFT", 10, -65) -- Moved down to make room for Announce
 ScrollFrame:SetPoint("BOTTOMRIGHT", -30, 130)
 
 local Content = CreateFrame("Frame", nil, ScrollFrame)
@@ -67,6 +67,15 @@ local function CreateBtn(text, width, x, y, parent)
 end
 
 -- 6. BUTTON ACTIONS
+-- The New Announce Button
+local startBtn = CreateBtn("Announce Start", 270, 0, 390, MainFrame)
+startBtn:SetPoint("TOP", 0, -35)
+startBtn:SetScript("OnClick", function()
+    local channel = (UnitInRaid("player") and "RAID") or (UnitInParty("player") and "PARTY") or "SAY"
+    local msg = "The lottery is live! Ticket price is 5g (max 5 per). Come trade {star} " .. UnitName("player") .. " {star} and get ur tickets today. 1st place gets 70% and 30% goes to gbank."
+    SendChatMessage(msg, channel)
+end)
+
 local addBtn = CreateBtn("Add Target", 130, -70, 70, MainFrame)
 addBtn:SetScript("OnClick", function()
     local name = UnitName("target")
@@ -106,10 +115,10 @@ local function HandleSlash(msg)
     
     cmd = cmd:lower()
     if cmd == "add" and arg1 then
-        if Lotto.active then print("Lotto: Cannot add players while a lottery is active. Reset first."); return end
+        if Lotto.active then print("Lotto: Reset first."); return end
         local playerName = arg1:gsub("^%l", string.upper)
         local count = tonumber(arg2) or 1
-        local current = Lotto.players[playerName] or 0
+        local current = type(Lotto.players[playerName]) == "number" and Lotto.players[playerName] or 0
         if (current + count) <= 5 then Lotto.players[playerName] = current + count end
         
     elseif cmd == "remove" and arg1 then
@@ -117,35 +126,24 @@ local function HandleSlash(msg)
         Lotto.players[playerName] = nil
         
     elseif cmd == "close" then
-        if Lotto.active then print("Lotto: Already closed. Waiting for winner or reset."); return end
-        if next(Lotto.players) == nil then print("Lotto: No players added."); return end
-        
+        if Lotto.active or next(Lotto.players) == nil then return end
         local pool = {}
-        Lotto.tickets = {}
-        Lotto.total = 0
-        
-        -- Create number pool
+        Lotto.tickets, Lotto.total = {}, 0
         for name, count in pairs(Lotto.players) do
-            for i = 1, count do 
-                Lotto.total = Lotto.total + 1
-                table.insert(pool, Lotto.total) 
-            end
+            for i = 1, count do Lotto.total = Lotto.total + 1 table.insert(pool, Lotto.total) end
         end
-        
-        -- Randomize and Assign
         for name, count in pairs(Lotto.players) do
-            local myNumbers = {}
+            local myNums = {}
             for i = 1, count do
-                local ticketNum = table.remove(pool, math.random(#pool))
-                Lotto.tickets[ticketNum] = name
-                table.insert(myNumbers, ticketNum)
+                local n = table.remove(pool, math.random(#pool))
+                Lotto.tickets[n] = name
+                table.insert(myNums, n)
             end
-            Lotto.players[name] = table.concat(myNumbers, ", ")
+            Lotto.players[name] = table.concat(myNums, ", ")
             SendChatMessage("Lotto: Your numbers: [" .. Lotto.players[name] .. "]", "WHISPER", nil, name)
         end
-        
         Lotto.active = true
-        SendChatMessage("Lotto CLOSED! Total: " .. Lotto.total .. ". Check whispers for numbers. /roll " .. Lotto.total, "RAID")
+        SendChatMessage("Lotto CLOSED! Total: " .. Lotto.total .. ". Check whispers. /roll " .. Lotto.total, "RAID")
         
     elseif cmd == "reset" then
         Lotto = { players = {}, tickets = {}, total = 0, active = false }
@@ -161,10 +159,11 @@ frame:SetScript("OnEvent", function(_, event, msg, sender)
     if event == "CHAT_MSG_SYSTEM" and Lotto.active then
         local name, roll, low, high = msg:match("(.+) rolls (%d+) %((%d+)%-(%d+)%)")
         if name and tonumber(high) == Lotto.total then
-            local winnerName = Lotto.tickets[tonumber(roll)]
+            local winN = tonumber(roll)
+            local winnerName = Lotto.tickets[winN]
             if winnerName then
                 local totalGold = Lotto.total * 5
-                SendChatMessage("Winner: " .. winnerName .. " (Ticket " .. roll .. ")! Payout: " .. (totalGold * 0.7) .. "g (Gbank: " .. (totalGold * 0.3) .. "g)", "RAID")
+                SendChatMessage("Winner: " .. winnerName .. " (Ticket " .. roll .. ")! Payout: " .. (totalGold * 0.7) .. "g (G-Bank: " .. (totalGold * 0.3) .. "g)", "RAID")
                 Lotto.active = false
                 RefreshUI()
             end
