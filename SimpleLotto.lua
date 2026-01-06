@@ -8,7 +8,7 @@ SimpleLottoSettings = SimpleLottoSettings or {
     bankSplit = 30
 }
 
--- 1. MAIN WINDOW
+-- 1. MAIN WINDOW (CENTER PANEL)
 local MainFrame = CreateFrame("Frame", "SimpleLottoFrame", UIParent, "BasicFrameTemplateWithInset")
 MainFrame:SetSize(300, 510)
 MainFrame:SetPoint("CENTER")
@@ -23,19 +23,17 @@ MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight"
 MainFrame.title:SetPoint("LEFT", MainFrame.TitleBg, "LEFT", 5, 0)
 MainFrame.title:SetText("Simple Lotto Master")
 
--- Close both windows if Main is closed via 'X'
+-- Close all windows if Main is closed
 MainFrame.CloseButton:HookScript("OnClick", function() 
     if SimpleLottoSettingsFrame then SimpleLottoSettingsFrame:Hide() end
     if SimpleLottoHistoryFrame then SimpleLottoHistoryFrame:Hide() end
 end)
 
--- 2. SETTINGS WINDOW (ATTACHED)
+-- 2. SETTINGS WINDOW (LEFT PANEL - ATTACHED)
 local SettingsFrame = CreateFrame("Frame", "SimpleLottoSettingsFrame", MainFrame, "BasicFrameTemplateWithInset")
 SettingsFrame:SetSize(220, 220)
--- This line "attaches" it to the LEFT side of the Main window
 SettingsFrame:SetPoint("TOPRIGHT", MainFrame, "TOPLEFT", -2, 0)
 SettingsFrame:Hide()
-
 SettingsFrame.title = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 SettingsFrame.title:SetPoint("LEFT", SettingsFrame.TitleBg, "LEFT", 5, 0)
 SettingsFrame.title:SetText("Lotto Settings")
@@ -70,23 +68,25 @@ saveSetBtn:SetScript("OnClick", function()
     SettingsFrame:Hide()
 end)
 
--- 3. HISTORY WINDOW (STILL FLOATING)
-local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", UIParent, "BasicFrameTemplateWithInset")
-HistoryFrame:SetSize(400, 300)
-HistoryFrame:SetPoint("CENTER", 350, 0)
+-- 3. HISTORY WINDOW (RIGHT PANEL - ATTACHED)
+local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", MainFrame, "BasicFrameTemplateWithInset")
+HistoryFrame:SetSize(350, 400)
+HistoryFrame:SetPoint("TOPLEFT", MainFrame, "TOPRIGHT", 2, 0)
 HistoryFrame:Hide()
 HistoryFrame.title = HistoryFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 HistoryFrame.title:SetPoint("LEFT", HistoryFrame.TitleBg, "LEFT", 5, 0)
 HistoryFrame.title:SetText("Lotto History Log")
+
 local HistoryScroll = CreateFrame("ScrollFrame", nil, HistoryFrame, "UIPanelScrollFrameTemplate")
 HistoryScroll:SetPoint("TOPLEFT", 10, -30)
 HistoryScroll:SetPoint("BOTTOMRIGHT", -30, 40)
 local HistoryContent = CreateFrame("Frame", nil, HistoryScroll)
-HistoryContent:SetSize(360, 1)
+HistoryContent:SetSize(300, 1)
 HistoryScroll:SetScrollChild(HistoryContent)
 local HistoryText = HistoryContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 HistoryText:SetPoint("TOPLEFT", 5, -5)
 HistoryText:SetJustifyH("LEFT")
+HistoryText:SetWidth(290)
 
 -- 4. UI REFRESH
 local function RefreshUI()
@@ -109,7 +109,7 @@ local function UpdateHistoryUI()
     HistoryText:SetText(log)
 end
 
--- 5. BUTTONS
+-- 5. BUTTONS (MAIN PANEL)
 local function CreateBtn(text, width, x, y, parent)
     local btn = CreateFrame("Button", nil, parent, "GameMenuButtonTemplate")
     btn:SetSize(width, 25)
@@ -180,6 +180,8 @@ CreateBtn("Settings", 130, 70, 70, MainFrame):SetScript("OnClick", function()
     if SettingsFrame:IsShown() then SettingsFrame:Hide() else SettingsFrame:Show() end
 end)
 CreateBtn("Full Reset All", 270, 0, 40, MainFrame):SetScript("OnClick", function() StaticPopup_Show("CONFIRM_LOTTO_RESET") end)
+
+-- BUTTON FOR HISTORY FRAME
 CreateBtn("Clear Log", 100, 0, 10, HistoryFrame):SetScript("OnClick", function() SimpleLottoHistory = {} UpdateHistoryUI() end)
 
 -- 6. LOGIC & EVENTS
@@ -207,6 +209,7 @@ frame:SetScript("OnEvent", function(_, event, msg, sender)
                 SendChatMessage(res, "RAID")
                 Lotto.active = false
                 RefreshUI()
+                if HistoryFrame:IsShown() then UpdateHistoryUI() end
             end
         end
     elseif event == "CHAT_MSG_WHISPER" then
