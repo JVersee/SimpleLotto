@@ -5,7 +5,6 @@ SimpleLottoSettings = SimpleLottoSettings or {
     maxTickets = 5,
     price = 5,
     winnerSplit = 70,
-    bankSplit = 30
 }
 
 -- 1. MAIN WINDOW (CENTER PANEL)
@@ -23,15 +22,14 @@ MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight"
 MainFrame.title:SetPoint("LEFT", MainFrame.TitleBg, "LEFT", 5, 0)
 MainFrame.title:SetText("Simple Lotto Master")
 
--- Close all windows if Main is closed
 MainFrame.CloseButton:HookScript("OnClick", function() 
     if SimpleLottoSettingsFrame then SimpleLottoSettingsFrame:Hide() end
     if SimpleLottoHistoryFrame then SimpleLottoHistoryFrame:Hide() end
 end)
 
--- 2. SETTINGS WINDOW (LEFT PANEL - ATTACHED)
+-- 2. SETTINGS WINDOW (LEFT PANEL)
 local SettingsFrame = CreateFrame("Frame", "SimpleLottoSettingsFrame", MainFrame, "BasicFrameTemplateWithInset")
-SettingsFrame:SetSize(220, 220)
+SettingsFrame:SetSize(220, 280) -- Increased height for better spacing
 SettingsFrame:SetPoint("TOPRIGHT", MainFrame, "TOPLEFT", -2, 0)
 SettingsFrame:Hide()
 SettingsFrame.title = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -52,23 +50,60 @@ end
 
 local editMax = CreateEditBox("Max Tickets:", -40, SimpleLottoSettings.maxTickets)
 local editPrice = CreateEditBox("Gold/Ticket:", -75, SimpleLottoSettings.price)
-local editWinner = CreateEditBox("Winner %:", -110, SimpleLottoSettings.winnerSplit)
-local editBank = CreateEditBox("Bank %:", -145, SimpleLottoSettings.bankSplit)
+
+-- THE SLIDER & BUTTONS
+local sliderLabel = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+sliderLabel:SetPoint("TOP", 0, -115)
+sliderLabel:SetText("Payout Split")
+
+local slider = CreateFrame("Slider", "SimpleLottoSplitSlider", SettingsFrame, "OptionsSliderTemplate")
+slider:SetPoint("TOP", 0, -145)
+slider:SetSize(140, 17)
+slider:SetMinMaxValues(0, 100)
+slider:SetValueStep(1)
+slider:SetObeyStepOnDrag(true)
+slider:SetValue(SimpleLottoSettings.winnerSplit)
+_G[slider:GetName() .. 'Low']:SetText('Bank')
+_G[slider:GetName() .. 'High']:SetText('Win')
+
+local splitDisplay = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+splitDisplay:SetPoint("TOP", slider, "BOTTOM", 0, -20)
+
+local function UpdateSliderText(val)
+    splitDisplay:SetText(string.format("Winner: %d%% | Bank: %d%%", val, 100 - val))
+end
+
+-- Arrow Buttons
+local function CreateArrow(text, point, x)
+    local btn = CreateFrame("Button", nil, SettingsFrame, "UIPanelButtonTemplate")
+    btn:SetSize(20, 20)
+    btn:SetText(text)
+    btn:SetPoint("CENTER", slider, point, x, 0)
+    return btn
+end
+
+local leftArrow = CreateArrow("<", "LEFT", -20)
+leftArrow:SetScript("OnClick", function() slider:SetValue(slider:GetValue() - 1) end)
+
+local rightArrow = CreateArrow(">", "RIGHT", 20)
+rightArrow:SetScript("OnClick", function() slider:SetValue(slider:GetValue() + 1) end)
+
+slider:SetScript("OnValueChanged", function(self, value) UpdateSliderText(value) end)
+UpdateSliderText(SimpleLottoSettings.winnerSplit)
 
 local saveSetBtn = CreateFrame("Button", nil, SettingsFrame, "GameMenuButtonTemplate")
 saveSetBtn:SetSize(120, 25)
-saveSetBtn:SetPoint("BOTTOM", 0, 15)
+saveSetBtn:SetPoint("BOTTOM", 0, 20) -- Better bottom padding
 saveSetBtn:SetText("Save Settings")
 saveSetBtn:SetScript("OnClick", function()
     SimpleLottoSettings.maxTickets = tonumber(editMax:GetText()) or 5
     SimpleLottoSettings.price = tonumber(editPrice:GetText()) or 5
-    SimpleLottoSettings.winnerSplit = tonumber(editWinner:GetText()) or 70
-    SimpleLottoSettings.bankSplit = tonumber(editBank:GetText()) or 30
+    SimpleLottoSettings.winnerSplit = math.floor(slider:GetValue())
     print("|cFF00FF00Lotto:|r Settings Saved.")
     SettingsFrame:Hide()
 end)
 
--- 3. HISTORY WINDOW (RIGHT PANEL - ATTACHED)
+-- 3. HISTORY WINDOW (RIGHT PANEL)
 local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", MainFrame, "BasicFrameTemplateWithInset")
 HistoryFrame:SetSize(350, 400)
 HistoryFrame:SetPoint("TOPLEFT", MainFrame, "TOPRIGHT", 2, 0)
@@ -76,7 +111,6 @@ HistoryFrame:Hide()
 HistoryFrame.title = HistoryFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 HistoryFrame.title:SetPoint("LEFT", HistoryFrame.TitleBg, "LEFT", 5, 0)
 HistoryFrame.title:SetText("Lotto History Log")
-
 local HistoryScroll = CreateFrame("ScrollFrame", nil, HistoryFrame, "UIPanelScrollFrameTemplate")
 HistoryScroll:SetPoint("TOPLEFT", 10, -30)
 HistoryScroll:SetPoint("BOTTOMRIGHT", -30, 40)
@@ -132,7 +166,7 @@ StatusText:SetPoint("BOTTOM", 0, 165)
 
 CreateBtn("Announce Start", 270, 0, 450, MainFrame):SetScript("OnClick", function()
     local s = SimpleLottoSettings
-    local msg = string.format("Lotto Live! %dg/ticket (max %d). Trade {star} %s {star}. Payout: %d%% winner / %d%% gbank.", s.price, s.maxTickets, UnitName("player"), s.winnerSplit, s.bankSplit)
+    local msg = string.format("Lotto Live! %dg/ticket (max %d). Trade {star} %s {star}. Payout: %d%% winner / %d%% gbank.", s.price, s.maxTickets, UnitName("player"), s.winnerSplit, 100 - s.winnerSplit)
     SendChatMessage(msg, (UnitInRaid("player") and "RAID") or "SAY")
 end)
 
@@ -180,8 +214,6 @@ CreateBtn("Settings", 130, 70, 70, MainFrame):SetScript("OnClick", function()
     if SettingsFrame:IsShown() then SettingsFrame:Hide() else SettingsFrame:Show() end
 end)
 CreateBtn("Full Reset All", 270, 0, 40, MainFrame):SetScript("OnClick", function() StaticPopup_Show("CONFIRM_LOTTO_RESET") end)
-
--- BUTTON FOR HISTORY FRAME
 CreateBtn("Clear Log", 100, 0, 10, HistoryFrame):SetScript("OnClick", function() SimpleLottoHistory = {} UpdateHistoryUI() end)
 
 -- 6. LOGIC & EVENTS
@@ -203,7 +235,7 @@ frame:SetScript("OnEvent", function(_, event, msg, sender)
                 local s = SimpleLottoSettings
                 local pot = Lotto.total * s.price
                 local winP = math.floor(pot * (s.winnerSplit/100))
-                local bP = math.floor(pot * (s.bankSplit/100))
+                local bP = pot - winP
                 local res = string.format("Winner: %s (Ticket %d)! Payout: %dg (G-Bank: %dg)", winner, tonumber(roll), winP, bP)
                 table.insert(SimpleLottoHistory, "|cFF00FF00" .. date("%d-%m-%Y") .. ":|r " .. res)
                 SendChatMessage(res, "RAID")
