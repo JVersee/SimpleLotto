@@ -1,5 +1,5 @@
 # SimpleLotto
-A simple lottery addon for WoW Classic
+A simple lottery addon for WoW TBC Anniversary
 
 
 # Commands
