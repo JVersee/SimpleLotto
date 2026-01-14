@@ -1,7 +1,8 @@
-## Interface: 20504
+## Interface: 20505
 ## Title: SimpleLotto
 ## Notes: A basic guild lottery addon
 ## SavedVariables: SimpleLottoHistory, SimpleLottoSettings
 ## Author: Amren
 SimpleLotto.lua
+
 
