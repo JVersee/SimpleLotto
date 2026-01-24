@@ -2,7 +2,7 @@
 ## Title: SimpleLotto
 ## Notes: A basic guild lottery addon
 ## SavedVariables: SimpleLottoHistory, SimpleLottoSettings
-## Author: Amren
+## Author(s): Amren, Bethany
 SimpleLotto.lua
 
 
