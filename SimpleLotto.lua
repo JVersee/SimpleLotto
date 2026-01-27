@@ -1,17 +1,18 @@
--- 1. INITIAL SETUP & FORCED INITIALIZATION
--- This ensures the 'channels' table exists before any UI elements try to read it.
+-- 1. INITIAL SETUP & REPAIR LOGIC
 local Lotto = { players = {}, tickets = {}, total = 0, active = false }
 SimpleLottoHistory = SimpleLottoHistory or {}
-SimpleLottoSettings = SimpleLottoSettings or {}
 
--- Establish defaults if they are missing
-SimpleLottoSettings.maxTickets = SimpleLottoSettings.maxTickets or 5
-SimpleLottoSettings.price = SimpleLottoSettings.price or 5
-SimpleLottoSettings.winnerSplit = SimpleLottoSettings.winnerSplit or 70
+-- This function repairs old save files and sets defaults
+local function InitializeSettings()
+    SimpleLottoSettings = SimpleLottoSettings or {}
+    SimpleLottoSettings.maxTickets = SimpleLottoSettings.maxTickets or 5
+    SimpleLottoSettings.price = SimpleLottoSettings.price or 5
+    SimpleLottoSettings.winnerSplit = SimpleLottoSettings.winnerSplit or 70
 
--- Ensure the channels sub-table exists to prevent "nil index" errors
-if not SimpleLottoSettings.channels then
-    SimpleLottoSettings.channels = { GUILD = false, RAID = true, PARTY = false }
+    -- Critical Fix: Force channels table to exist for users updating from old versions
+    if not SimpleLottoSettings.channels then
+        SimpleLottoSettings.channels = { GUILD = false, RAID = true, PARTY = false }
+    end
 end
 
 -- 2. MAIN WINDOW (CENTER PANEL)
@@ -43,7 +44,7 @@ SettingsFrame.title = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontHi
 SettingsFrame.title:SetPoint("LEFT", SettingsFrame.TitleBg, "LEFT", 5, 0)
 SettingsFrame.title:SetText("Lotto Settings")
 
-local function CreateEditBox(label, y, default)
+local function CreateEditBox(label, y)
     local lbl = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     lbl:SetPoint("TOPLEFT", 15, y)
     lbl:SetText(label)
@@ -51,12 +52,11 @@ local function CreateEditBox(label, y, default)
     eb:SetSize(50, 20)
     eb:SetPoint("TOPRIGHT", -15, y)
     eb:SetAutoFocus(false)
-    eb:SetText(default)
     return eb
 end
 
-local editMax = CreateEditBox("Max Tickets:", -40, SimpleLottoSettings.maxTickets)
-local editPrice = CreateEditBox("Gold/Ticket:", -75, SimpleLottoSettings.price)
+local editMax = CreateEditBox("Max Tickets:", -40)
+local editPrice = CreateEditBox("Gold/Ticket:", -75)
 
 -- SLIDER & PRECISION ARROWS
 local sliderLabel = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -69,7 +69,6 @@ slider:SetSize(140, 17)
 slider:SetMinMaxValues(0, 100)
 slider:SetValueStep(1)
 slider:SetObeyStepOnDrag(true)
-slider:SetValue(SimpleLottoSettings.winnerSplit)
 _G[slider:GetName()..'Low']:SetText('Bank')
 _G[slider:GetName()..'High']:SetText('Win')
 
@@ -80,19 +79,17 @@ local function UpdateSliderText(val)
     splitDisplay:SetText(string.format("Winner: %d%% | Bank: %d%%", val, 100 - val)) 
 end
 slider:SetScript("OnValueChanged", function(self, value) UpdateSliderText(value) end)
-UpdateSliderText(SimpleLottoSettings.winnerSplit)
 
-local leftArrow = CreateFrame("Button", nil, SettingsFrame, "UIPanelButtonTemplate")
-leftArrow:SetSize(20, 20)
-leftArrow:SetText("<")
-leftArrow:SetPoint("RIGHT", slider, "LEFT", -5, 0)
-leftArrow:SetScript("OnClick", function() slider:SetValue(slider:GetValue() - 1) end)
-
-local rightArrow = CreateFrame("Button", nil, SettingsFrame, "UIPanelButtonTemplate")
-rightArrow:SetSize(20, 20)
-rightArrow:SetText(">")
-rightArrow:SetPoint("LEFT", slider, "RIGHT", 5, 0)
-rightArrow:SetScript("OnClick", function() slider:SetValue(slider:GetValue() + 1) end)
+local function CreateArrow(text, point, x, delta)
+    local btn = CreateFrame("Button", nil, SettingsFrame, "UIPanelButtonTemplate")
+    btn:SetSize(20, 20)
+    btn:SetText(text)
+    btn:SetPoint(point, slider, x, 0)
+    btn:SetScript("OnClick", function() slider:SetValue(slider:GetValue() + delta) end)
+    return btn
+end
+CreateArrow("<", "RIGHT", "LEFT", -5, -1)
+CreateArrow(">", "LEFT", "RIGHT", 5, 1)
 
 -- CHANNEL CHECKBOXES
 local chanLabel = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -112,13 +109,16 @@ local checkGuild = CreateCheck("Guild", -215)
 local checkRaid = CreateCheck("Raid", -245)
 local checkParty = CreateCheck("Party", -275)
 
--- Always sync checkboxes to current settings when opening window
+-- Sync UI to settings when opening
 SettingsFrame:SetScript("OnShow", function()
-    if SimpleLottoSettings and SimpleLottoSettings.channels then
-        checkGuild:SetChecked(SimpleLottoSettings.channels.GUILD)
-        checkRaid:SetChecked(SimpleLottoSettings.channels.RAID)
-        checkParty:SetChecked(SimpleLottoSettings.channels.PARTY)
-    end
+    InitializeSettings() -- Final check
+    editMax:SetText(SimpleLottoSettings.maxTickets)
+    editPrice:SetText(SimpleLottoSettings.price)
+    slider:SetValue(SimpleLottoSettings.winnerSplit)
+    UpdateSliderText(SimpleLottoSettings.winnerSplit)
+    checkGuild:SetChecked(SimpleLottoSettings.channels.GUILD)
+    checkRaid:SetChecked(SimpleLottoSettings.channels.RAID)
+    checkParty:SetChecked(SimpleLottoSettings.channels.PARTY)
 end)
 
 -- BROADCAST HELPER
@@ -127,7 +127,6 @@ local function MultiBroadcast(msg)
     local s = SimpleLottoSettings.channels
     if s.GUILD and IsInGuild() then SendChatMessage(msg, "GUILD") end
     if s.RAID and UnitInRaid("player") then SendChatMessage(msg, "RAID") end
-    -- Party works in both standard parties and within raids
     if s.PARTY and UnitInParty("player") then SendChatMessage(msg, "PARTY") end
 end
 
@@ -139,17 +138,14 @@ saveSetBtn:SetScript("OnClick", function()
     SimpleLottoSettings.maxTickets = tonumber(editMax:GetText()) or 5
     SimpleLottoSettings.price = tonumber(editPrice:GetText()) or 5
     SimpleLottoSettings.winnerSplit = math.floor(slider:GetValue())
-    
-    -- Update the actual settings table
     SimpleLottoSettings.channels.GUILD = checkGuild:GetChecked()
     SimpleLottoSettings.channels.RAID = checkRaid:GetChecked()
     SimpleLottoSettings.channels.PARTY = checkParty:GetChecked()
-    
     print("|cFF00FF00Lotto:|r Settings Saved.")
     SettingsFrame:Hide()
 end)
 
--- 4. HISTORY WINDOW (RIGHT PANEL)
+-- 4. HISTORY WINDOW
 local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", MainFrame, "BasicFrameTemplateWithInset")
 HistoryFrame:SetSize(350, 400)
 HistoryFrame:SetPoint("TOPLEFT", MainFrame, "TOPRIGHT", 2, 0)
@@ -157,7 +153,6 @@ HistoryFrame:Hide()
 HistoryFrame.title = HistoryFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 HistoryFrame.title:SetPoint("LEFT", HistoryFrame.TitleBg, "LEFT", 5, 0)
 HistoryFrame.title:SetText("Lotto History Log")
-
 local HistoryScroll = CreateFrame("ScrollFrame", nil, HistoryFrame, "UIPanelScrollFrameTemplate")
 HistoryScroll:SetPoint("TOPLEFT", 10, -30)
 HistoryScroll:SetPoint("BOTTOMRIGHT", -30, 40)
@@ -263,10 +258,13 @@ StaticPopupDialogs["CONFIRM_LOTTO_RESET"] = {
 }
 
 local frame = CreateFrame("Frame")
+frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("CHAT_MSG_SYSTEM")
 frame:RegisterEvent("CHAT_MSG_WHISPER")
-frame:SetScript("OnEvent", function(_, event, msg, sender)
-    if event == "CHAT_MSG_SYSTEM" and Lotto.active then
+frame:SetScript("OnEvent", function(self, event, msg, sender)
+    if event == "ADDON_LOADED" and msg == "SimpleLotto" then
+        InitializeSettings()
+    elseif event == "CHAT_MSG_SYSTEM" and Lotto.active then
         local name, roll, low, high = msg:match("(.+) rolls (%d+) %((%d+)%-(%d+)%)")
         if name and tonumber(high) == Lotto.total then
             local winner = Lotto.tickets[tonumber(roll)]
