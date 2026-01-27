@@ -4,5 +4,3 @@
 ## SavedVariables: SimpleLottoHistory, SimpleLottoSettings
 ## Author(s): Amren, Bethany
 SimpleLotto.lua
-
-
