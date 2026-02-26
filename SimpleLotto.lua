@@ -1,21 +1,36 @@
 -- 1. INITIAL SETUP & REPAIR LOGIC
 local Lotto = { players = {}, tickets = {}, total = 0, active = false }
+local WhisperQueue = {} -- NEW: For throttled whispers
 SimpleLottoHistory = SimpleLottoHistory or {}
 
--- This function repairs old save files and sets defaults
 local function InitializeSettings()
     SimpleLottoSettings = SimpleLottoSettings or {}
     SimpleLottoSettings.maxTickets = SimpleLottoSettings.maxTickets or 5
     SimpleLottoSettings.price = SimpleLottoSettings.price or 5
     SimpleLottoSettings.winnerSplit = SimpleLottoSettings.winnerSplit or 70
 
-    -- Critical Fix: Force channels table to exist for users updating from old versions
     if not SimpleLottoSettings.channels then
         SimpleLottoSettings.channels = { GUILD = false, RAID = true, PARTY = false }
     end
 end
 
--- 2. MAIN WINDOW (CENTER PANEL)
+-- 2. WHISPER THROTTLER (Prevents DC in large raids)
+local function ProcessWhisperQueue()
+    if #WhisperQueue > 0 then
+        local nextMsg = table.remove(WhisperQueue, 1)
+        SendChatMessage(nextMsg.text, "WHISPER", nil, nextMsg.target)
+        if #WhisperQueue > 0 then
+            C_Timer.After(0.2, ProcessWhisperQueue) -- 0.2s delay between whispers
+        end
+    end
+end
+
+local function ThrottledWhisper(target, text)
+    table.insert(WhisperQueue, {target = target, text = text})
+    if #WhisperQueue == 1 then ProcessWhisperQueue() end
+end
+
+-- 3. MAIN WINDOW (CENTER PANEL)
 local MainFrame = CreateFrame("Frame", "SimpleLottoFrame", UIParent, "BasicFrameTemplateWithInset")
 MainFrame:SetSize(300, 510)
 MainFrame:SetPoint("CENTER")
@@ -35,7 +50,7 @@ MainFrame.CloseButton:HookScript("OnClick", function()
     if SimpleLottoHistoryFrame then SimpleLottoHistoryFrame:Hide() end
 end)
 
--- 3. SETTINGS WINDOW (LEFT PANEL)
+-- 4. SETTINGS WINDOW (LEFT PANEL)
 local SettingsFrame = CreateFrame("Frame", "SimpleLottoSettingsFrame", MainFrame, "BasicFrameTemplateWithInset")
 SettingsFrame:SetSize(220, 360) 
 SettingsFrame:SetPoint("TOPRIGHT", MainFrame, "TOPLEFT", -2, 0)
@@ -76,26 +91,31 @@ local splitDisplay = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontHig
 splitDisplay:SetPoint("TOP", slider, "BOTTOM", 0, -20)
 
 local function UpdateSliderText(val) 
-    splitDisplay:SetText(string.format("Winner: %d%% | Bank: %d%%", val, 100 - val)) 
+    local rounded = math.floor(val + 0.5)
+    splitDisplay:SetText(string.format("Winner: %d%% | Bank: %d%%", rounded, 100 - rounded)) 
 end
-slider:SetScript("OnValueChanged", function(self, value) UpdateSliderText(value) end)
+
+slider:SetScript("OnValueChanged", function(self, value) 
+    UpdateSliderText(value) 
+end)
 
 local function CreateArrow(text, point, x, delta)
     local btn = CreateFrame("Button", nil, SettingsFrame, "UIPanelButtonTemplate")
     btn:SetSize(20, 20)
     btn:SetText(text)
     btn:SetPoint(point, slider, x, 0)
-    btn:SetScript("OnClick", function() slider:SetValue(slider:GetValue() + delta) end)
+    btn:SetScript("OnClick", function() 
+        local current = math.floor(slider:GetValue() + 0.5)
+        local newVal = current + delta
+        slider:SetValue(math.max(0, math.min(100, newVal)))
+        UpdateSliderText(slider:GetValue())
+    end)
     return btn
 end
 CreateArrow("<", "RIGHT", "LEFT", -5, -1)
 CreateArrow(">", "LEFT", "RIGHT", 5, 1)
 
--- CHANNEL CHECKBOXES
-local chanLabel = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-chanLabel:SetPoint("TOPLEFT", 15, -190)
-chanLabel:SetText("Announce Channels:")
-
+-- CHANNELS
 local function CreateCheck(label, y)
     local cb = CreateFrame("CheckButton", nil, SettingsFrame, "UICheckButtonTemplate")
     cb:SetPoint("TOPLEFT", 15, y)
@@ -104,31 +124,22 @@ local function CreateCheck(label, y)
     cb.text:SetText(label)
     return cb
 end
-
 local checkGuild = CreateCheck("Guild", -215)
 local checkRaid = CreateCheck("Raid", -245)
 local checkParty = CreateCheck("Party", -275)
 
--- Sync UI to settings when opening
 SettingsFrame:SetScript("OnShow", function()
-    InitializeSettings() -- Final check
+    InitializeSettings()
     editMax:SetText(SimpleLottoSettings.maxTickets)
     editPrice:SetText(SimpleLottoSettings.price)
+    slider:SetMinMaxValues(0, 100)
+    slider:SetValueStep(1)
     slider:SetValue(SimpleLottoSettings.winnerSplit)
     UpdateSliderText(SimpleLottoSettings.winnerSplit)
     checkGuild:SetChecked(SimpleLottoSettings.channels.GUILD)
     checkRaid:SetChecked(SimpleLottoSettings.channels.RAID)
     checkParty:SetChecked(SimpleLottoSettings.channels.PARTY)
 end)
-
--- BROADCAST HELPER
-local function MultiBroadcast(msg)
-    if not msg or not SimpleLottoSettings.channels then return end
-    local s = SimpleLottoSettings.channels
-    if s.GUILD and IsInGuild() then SendChatMessage(msg, "GUILD") end
-    if s.RAID and UnitInRaid("player") then SendChatMessage(msg, "RAID") end
-    if s.PARTY and UnitInParty("player") then SendChatMessage(msg, "PARTY") end
-end
 
 local saveSetBtn = CreateFrame("Button", nil, SettingsFrame, "GameMenuButtonTemplate")
 saveSetBtn:SetSize(120, 25)
@@ -137,7 +148,7 @@ saveSetBtn:SetText("Save Settings")
 saveSetBtn:SetScript("OnClick", function()
     SimpleLottoSettings.maxTickets = tonumber(editMax:GetText()) or 5
     SimpleLottoSettings.price = tonumber(editPrice:GetText()) or 5
-    SimpleLottoSettings.winnerSplit = math.floor(slider:GetValue())
+    SimpleLottoSettings.winnerSplit = math.floor(slider:GetValue() + 0.5)
     SimpleLottoSettings.channels.GUILD = checkGuild:GetChecked()
     SimpleLottoSettings.channels.RAID = checkRaid:GetChecked()
     SimpleLottoSettings.channels.PARTY = checkParty:GetChecked()
@@ -145,7 +156,7 @@ saveSetBtn:SetScript("OnClick", function()
     SettingsFrame:Hide()
 end)
 
--- 4. HISTORY WINDOW
+-- 5. HISTORY WINDOW (RIGHT PANEL)
 local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", MainFrame, "BasicFrameTemplateWithInset")
 HistoryFrame:SetSize(350, 400)
 HistoryFrame:SetPoint("TOPLEFT", MainFrame, "TOPRIGHT", 2, 0)
@@ -164,7 +175,27 @@ HistoryText:SetPoint("TOPLEFT", 5, -5)
 HistoryText:SetJustifyH("LEFT")
 HistoryText:SetWidth(290)
 
--- 5. BUTTONS & UI REFRESH
+local function UpdateHistoryUI()
+    local log = ""
+    for i = #SimpleLottoHistory, 1, -1 do log = log .. SimpleLottoHistory[i] .. "\n\n" end
+    HistoryText:SetText(log)
+end
+
+local clearLogBtn = CreateFrame("Button", nil, HistoryFrame, "GameMenuButtonTemplate")
+clearLogBtn:SetSize(100, 25)
+clearLogBtn:SetPoint("BOTTOM", 0, 10)
+clearLogBtn:SetText("Clear Log")
+clearLogBtn:SetScript("OnClick", function() SimpleLottoHistory = {} UpdateHistoryUI() end)
+
+-- 6. BROADCAST & REFRESH
+local function MultiBroadcast(msg)
+    if not msg or not SimpleLottoSettings.channels then return end
+    local s = SimpleLottoSettings.channels
+    if s.GUILD and IsInGuild() then SendChatMessage(msg, "GUILD") end
+    if s.RAID and UnitInRaid("player") then SendChatMessage(msg, "RAID") end
+    if s.PARTY and UnitInParty("player") then SendChatMessage(msg, "PARTY") end
+end
+
 local function RefreshUI()
     local text, count = "", 0
     local names = {}
@@ -179,12 +210,7 @@ local function RefreshUI()
     StatusText:SetText(Lotto.active and "|cFFFF0000Waiting for Roll|r" or ("|cFFFFFF00Pot:|r "..(count * SimpleLottoSettings.price).."g  |cFF00FF00Tkts:|r "..count))
 end
 
-local function UpdateHistoryUI()
-    local log = ""
-    for i = #SimpleLottoHistory, 1, -1 do log = log .. SimpleLottoHistory[i] .. "\n\n" end
-    HistoryText:SetText(log)
-end
-
+-- 7. MAIN UI BUTTONS
 local function CreateBtn(text, width, x, y, parent)
     local btn = CreateFrame("Button", nil, parent, "GameMenuButtonTemplate")
     btn:SetSize(width, 25)
@@ -238,7 +264,7 @@ CreateBtn("Close & Assign", 270, 0, 100, MainFrame):SetScript("OnClick", functio
             table.insert(myN, t)
         end
         Lotto.players[n] = table.concat(myN, ", ")
-        SendChatMessage("Lotto: Your numbers: ["..Lotto.players[n].."]", "WHISPER", nil, n)
+        ThrottledWhisper(n, "Lotto: Your numbers: ["..Lotto.players[n].."]")
     end
     Lotto.active = true
     MultiBroadcast("Lotto CLOSED! Total tickets: "..Lotto.total..". Please /roll "..Lotto.total)
@@ -247,16 +273,15 @@ end)
 
 CreateBtn("History Log", 130, -70, 70, MainFrame):SetScript("OnClick", function() if HistoryFrame:IsShown() then HistoryFrame:Hide() else UpdateHistoryUI() HistoryFrame:Show() end end)
 CreateBtn("Settings", 130, 70, 70, MainFrame):SetScript("OnClick", function() if SettingsFrame:IsShown() then SettingsFrame:Hide() else SettingsFrame:Show() end end)
-CreateBtn("Full Reset All", 270, 0, 40, MainFrame):SetScript("OnClick", function() StaticPopup_Show("CONFIRM_LOTTO_RESET") end)
-CreateBtn("Clear Log", 100, 0, 10, HistoryFrame):SetScript("OnClick", function() SimpleLottoHistory = {} UpdateHistoryUI() end)
 
--- 6. LOGIC & EVENTS
 StaticPopupDialogs["CONFIRM_LOTTO_RESET"] = {
     text = "Clear ALL current lottery data?", button1 = "Yes", button2 = "No",
     OnAccept = function() Lotto = { players = {}, tickets = {}, total = 0, active = false } RefreshUI() end,
     timeout = 0, whileDead = true, hideOnEscape = true,
 }
+CreateBtn("Full Reset All", 270, 0, 40, MainFrame):SetScript("OnClick", function() StaticPopup_Show("CONFIRM_LOTTO_RESET") end)
 
+-- 8. LOGIC & EVENTS
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("CHAT_MSG_SYSTEM")
