@@ -1,6 +1,6 @@
 -- 1. INITIAL SETUP & REPAIR LOGIC
 local Lotto = { players = {}, tickets = {}, total = 0, active = false }
-local WhisperQueue = {} -- NEW: For throttled whispers
+local WhisperQueue = {} -- For throttled whispers
 SimpleLottoHistory = SimpleLottoHistory or {}
 
 local function InitializeSettings()
@@ -30,8 +30,8 @@ local function ThrottledWhisper(target, text)
     if #WhisperQueue == 1 then ProcessWhisperQueue() end
 end
 
--- 3. MAIN WINDOW (CENTER PANEL)
-local MainFrame = CreateFrame("Frame", "SimpleLottoFrame", UIParent, "BasicFrameTemplateWithInset")
+-- 3. MAIN WINDOW (BORDERLESS & TRANSPARENT)
+local MainFrame = CreateFrame("Frame", "SimpleLottoFrame", UIParent)
 MainFrame:SetSize(300, 510)
 MainFrame:SetPoint("CENTER")
 MainFrame:SetMovable(true)
@@ -39,24 +39,48 @@ MainFrame:EnableMouse(true)
 MainFrame:RegisterForDrag("LeftButton")
 MainFrame:SetScript("OnDragStart", MainFrame.StartMoving)
 MainFrame:SetScript("OnDragStop", MainFrame.StopMovingOrSizing)
+MainFrame:SetFrameStrata("HIGH")
 MainFrame:Hide()
 
-MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-MainFrame.title:SetPoint("LEFT", MainFrame.TitleBg, "LEFT", 5, 0)
-MainFrame.title:SetText("Simple Lotto Master")
+-- Background Texture (Transparent Dark)
+local bgMain = MainFrame:CreateTexture(nil, "BACKGROUND")
+bgMain:SetAllPoints(MainFrame)
+bgMain:SetColorTexture(0, 0, 0, 0.7) -- Black, 70% opacity
 
-MainFrame.CloseButton:HookScript("OnClick", function() 
+-- Title Section
+MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+MainFrame.title:SetPoint("TOP", MainFrame, "TOP", 0, -10)
+-- Custom Colored Title: |cFFRRGGBB
+MainFrame.title:SetText("|cFFFFD100Simple|r |cFFFF0000Lotto|r |cFF00FF00Master|r")
+
+-- Spoof Logo Texture Placeholder
+-- Replace "Interface\\Icons\\INV_Misc_Dice_01" with your custom texture path
+MainFrame.logo = MainFrame:CreateTexture(nil, "OVERLAY")
+MainFrame.logo:SetSize(32, 32)
+MainFrame.logo:SetPoint("RIGHT", MainFrame.title, "LEFT", -5, 0)
+MainFrame.logo:SetTexture("Interface\\Icons\\INV_Misc_Dice_01") 
+
+-- Close Button (Minimal)
+local CloseBtn = CreateFrame("Button", nil, MainFrame, "UIPanelCloseButton")
+CloseBtn:SetPoint("TOPRIGHT", 5, 5)
+CloseBtn:SetScript("OnClick", function()
+    MainFrame:Hide()
     if SimpleLottoSettingsFrame then SimpleLottoSettingsFrame:Hide() end
     if SimpleLottoHistoryFrame then SimpleLottoHistoryFrame:Hide() end
 end)
 
--- 4. SETTINGS WINDOW (LEFT PANEL)
-local SettingsFrame = CreateFrame("Frame", "SimpleLottoSettingsFrame", MainFrame, "BasicFrameTemplateWithInset")
+-- 4. SETTINGS WINDOW (TRANSPARENT)
+local SettingsFrame = CreateFrame("Frame", "SimpleLottoSettingsFrame", MainFrame)
 SettingsFrame:SetSize(220, 360) 
 SettingsFrame:SetPoint("TOPRIGHT", MainFrame, "TOPLEFT", -2, 0)
 SettingsFrame:Hide()
+
+local bgSet = SettingsFrame:CreateTexture(nil, "BACKGROUND")
+bgSet:SetAllPoints(SettingsFrame)
+bgSet:SetColorTexture(0, 0, 0, 0.8) -- Slightly darker for contrast
+
 SettingsFrame.title = SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-SettingsFrame.title:SetPoint("LEFT", SettingsFrame.TitleBg, "LEFT", 5, 0)
+SettingsFrame.title:SetPoint("TOP", SettingsFrame, "TOP", 0, -10)
 SettingsFrame.title:SetText("Lotto Settings")
 
 local function CreateEditBox(label, y)
@@ -156,14 +180,20 @@ saveSetBtn:SetScript("OnClick", function()
     SettingsFrame:Hide()
 end)
 
--- 5. HISTORY WINDOW (RIGHT PANEL)
-local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", MainFrame, "BasicFrameTemplateWithInset")
+-- 5. HISTORY WINDOW (TRANSPARENT)
+local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", MainFrame)
 HistoryFrame:SetSize(350, 400)
 HistoryFrame:SetPoint("TOPLEFT", MainFrame, "TOPRIGHT", 2, 0)
 HistoryFrame:Hide()
+
+local bgHist = HistoryFrame:CreateTexture(nil, "BACKGROUND")
+bgHist:SetAllPoints(HistoryFrame)
+bgHist:SetColorTexture(0, 0, 0, 0.8)
+
 HistoryFrame.title = HistoryFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-HistoryFrame.title:SetPoint("LEFT", HistoryFrame.TitleBg, "LEFT", 5, 0)
+HistoryFrame.title:SetPoint("TOP", HistoryFrame, "TOP", 0, -10)
 HistoryFrame.title:SetText("Lotto History Log")
+
 local HistoryScroll = CreateFrame("ScrollFrame", nil, HistoryFrame, "UIPanelScrollFrameTemplate")
 HistoryScroll:SetPoint("TOPLEFT", 10, -30)
 HistoryScroll:SetPoint("BOTTOMRIGHT", -30, 40)
@@ -179,6 +209,7 @@ local function UpdateHistoryUI()
     local log = ""
     for i = #SimpleLottoHistory, 1, -1 do log = log .. SimpleLottoHistory[i] .. "\n\n" end
     HistoryText:SetText(log)
+    HistoryContent:SetHeight(HistoryText:GetHeight() + 10)
 end
 
 local clearLogBtn = CreateFrame("Button", nil, HistoryFrame, "GameMenuButtonTemplate")
@@ -220,7 +251,7 @@ local function CreateBtn(text, width, x, y, parent)
 end
 
 local ScrollFrame = CreateFrame("ScrollFrame", nil, MainFrame, "UIPanelScrollFrameTemplate")
-ScrollFrame:SetPoint("TOPLEFT", 10, -65)
+ScrollFrame:SetPoint("TOPLEFT", 10, -70)
 ScrollFrame:SetPoint("BOTTOMRIGHT", -30, 190)
 local Content = CreateFrame("Frame", nil, ScrollFrame)
 Content:SetSize(260, 1)
@@ -228,6 +259,7 @@ ScrollFrame:SetScrollChild(Content)
 ListText = Content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 ListText:SetPoint("TOPLEFT", 5, -5)
 ListText:SetJustifyH("LEFT")
+
 StatusText = MainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 StatusText:SetPoint("BOTTOM", 0, 165)
 
