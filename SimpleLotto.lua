@@ -105,15 +105,15 @@ local function CreateArrow(text, point, x, delta)
     btn:SetText(text)
     btn:SetPoint(point, slider, x, 0)
     btn:SetScript("OnClick", function() 
-        local current = math.floor(slider:GetValue() + 0.5)
+        local current = math.floor(slider:GetValue() + 0.1)
         local newVal = current + delta
         slider:SetValue(math.max(0, math.min(100, newVal)))
         UpdateSliderText(slider:GetValue())
     end)
     return btn
 end
-CreateArrow("<", "RIGHT", "LEFT", -5, -1)
-CreateArrow(">", "LEFT", "RIGHT", 5, 1)
+CreateArrow("<", "RIGHT", "LEFT", -1, -1)
+CreateArrow(">", "LEFT", "RIGHT", 1, 1)
 
 -- CHANNELS
 local function CreateCheck(label, y)
