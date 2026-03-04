@@ -51,6 +51,15 @@ MainFrame.title = MainFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightL
 MainFrame.title:SetPoint("TOP", MainFrame, "TOP", 0, -10)
 MainFrame.title:SetText("|cFFFFD100Simple|r |cFFFF0000Lotto|r |cFF00FF00Master|r")
 
+-- RESTORED CLOSE BUTTON
+local CloseBtn = CreateFrame("Button", nil, MainFrame, "UIPanelCloseButton")
+CloseBtn:SetPoint("TOPRIGHT", MainFrame, "TOPRIGHT", 0, 0)
+CloseBtn:SetScript("OnClick", function() 
+    MainFrame:Hide() 
+    if SimpleLottoSettingsFrame then SimpleLottoSettingsFrame:Hide() end
+    if SimpleLottoHistoryFrame then SimpleLottoHistoryFrame:Hide() end
+end)
+
 -- 4. SETTINGS WINDOW
 local SettingsFrame = CreateFrame("Frame", "SimpleLottoSettingsFrame", MainFrame)
 SettingsFrame:SetSize(220, 360) 
@@ -109,8 +118,8 @@ local function CreateArrow(text, point, x, delta)
     end)
     return btn
 end
-CreateArrow("<", "RIGHT", "LEFT", -1, 0)
-CreateArrow(">", "LEFT", "RIGHT", 1, 0)
+CreateArrow("<", "RIGHT", "LEFT", -5, 0)
+CreateArrow(">", "LEFT", "RIGHT", 5, 0)
 
 local function CreateCheck(label, y)
     local cb = CreateFrame("CheckButton", nil, SettingsFrame, "UICheckButtonTemplate")
@@ -149,7 +158,7 @@ saveSetBtn:SetScript("OnClick", function()
     SettingsFrame:Hide()
 end)
 
--- 5. HISTORY WINDOW (WITH CLEAR BUTTON RESTORED)
+-- 5. HISTORY WINDOW
 local HistoryFrame = CreateFrame("Frame", "SimpleLottoHistoryFrame", MainFrame)
 HistoryFrame:SetSize(350, 400)
 HistoryFrame:SetPoint("TOPLEFT", MainFrame, "TOPRIGHT", 2, 0)
@@ -165,7 +174,7 @@ HistoryFrame.title:SetText("Lotto History Log")
 
 local HistoryScroll = CreateFrame("ScrollFrame", nil, HistoryFrame, "UIPanelScrollFrameTemplate")
 HistoryScroll:SetPoint("TOPLEFT", 10, -35)
-HistoryScroll:SetPoint("BOTTOMRIGHT", -30, 45) -- Leaves room for the clear button
+HistoryScroll:SetPoint("BOTTOMRIGHT", -30, 45)
 local HistoryContent = CreateFrame("Frame", nil, HistoryScroll)
 HistoryContent:SetSize(300, 1)
 HistoryScroll:SetScrollChild(HistoryContent)
@@ -181,7 +190,6 @@ local function UpdateHistoryUI()
     HistoryContent:SetHeight(HistoryText:GetHeight() + 20)
 end
 
--- RESTORED CLEAR BUTTON
 local clearLogBtn = CreateFrame("Button", nil, HistoryFrame, "GameMenuButtonTemplate")
 clearLogBtn:SetSize(120, 25)
 clearLogBtn:SetPoint("BOTTOM", 0, 12)
