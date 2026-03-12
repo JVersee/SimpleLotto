@@ -19,3 +19,14 @@ Players can whisper the lottery master 'tickets' or 'numbers' which will respond
 
 if the session is still open, the player will receive the amount of tickets they currently bought.
 if the session is closed, the player will receive their ticket numbers.
+
+
+# Usage
+
+1. Open the main window with /sl 
+2. Use the 'settings' option to set the amount of tickets, price per ticket, guild bank/winner cut off, and which channels to post announcements
+3. Save your settings
+4. Use the 'Announce Start' button in the top of the main window, to announce lottery start in the configured channels
+5. Add players by targetting them and using the 'Add Target' to add number of tickets for targetted player (click multiple times for each ticket)
+6. Once all players have been added, use the 'Close & Assign' to assign numbers to tickets which will be shown in the main screen
+7. Perform the announced /roll amount to determine a winner
